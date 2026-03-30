@@ -8,7 +8,7 @@ from google.genai import types
 # 配置
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 GITHUB_URL = "https://api.github.com/repos/MicrosoftDocs/powerbi-docs/contents/powerbi-docs/report-server/changelog.md"
-STATE_FILE = "last_version.json"
+STATE_FILE = "pbirs_version.json"
 
 def run_monitor():
     print("正在獲取 GitHub 完整更新日誌內容...")
