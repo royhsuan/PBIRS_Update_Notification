@@ -2,7 +2,9 @@ import os
 import base64
 import requests
 import json
-import google.generativeai as genai
+# 換成新版模組
+from google import genai
+from google.genai import types
 
 # 配置
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -22,7 +24,7 @@ def run_monitor():
     else:
         state = {"sha": ""}
 
-    # 3. 比對 SHA (聰明檢查：沒變動就收工)
+    # 3. 比對 SHA
     if state.get("sha") == current_sha:
         print("內容未變動，結束執行。")
         return False
@@ -31,26 +33,35 @@ def run_monitor():
     print("發現新內容，正在解析...")
     md_text = base64.b64decode(gh_data['content']).decode('utf-8')
     
-    genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    # 初始化新版 Client
+    client = genai.Client(api_key=GEMINI_KEY)
+    
+    # 【重點】如果你在 2.0 遇到 Limit 0，請先試著改用 'gemini-1.5-flash'
+    target_model = 'gemini-2.0-flash' 
+    
     prompt = f"請解析此 Power BI 更新日誌並以 JSON 格式回傳最新版本資訊(version, release_date, description): {md_text[:5000]}"
     
     try:
-        ai_resp = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-        new_data = json.loads(ai_resp.text)
-    except Exception as e:
-        # 如果失敗，印出 Gemini 回傳的原文字，這能幫我們抓到真正的原因
-        print(f"AI 解析階段出錯: {str(e)}")
-        if 'ai_resp' in locals():
-            print(f"AI 回傳內容: {ai_resp.text}")
-        raise  # 讓 GitHub Action 捕捉到錯誤並顯示 Exit Code 1
+        response = client.models.generate_content(
+            model=target_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type='application/json',
+            ),
+        )
+        # 新版 SDK 直接用 parsed 或從 text 拿
+        new_data = json.loads(response.text)
         
+    except Exception as e:
+        print(f"AI 解析階段出錯，可能是配額問題：{str(e)}")
+        raise 
+    
     # 5. 更新狀態檔案
     new_data["sha"] = current_sha
     with open(STATE_FILE, 'w', encoding='utf-8') as f:
         json.dump(new_data, f, indent=4, ensure_ascii=False)
     
-    print(f"成功擷取新版本: {new_data['version']}")
+    print(f"成功擷取新版本: {new_data.get('version', 'Unknown')}")
     return True
 
 if __name__ == "__main__":
