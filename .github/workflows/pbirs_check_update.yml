@@ -34,7 +34,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python monitor.py
+          python pbirs_monitor.py
           date > heartbeat.txt  # 每次執行都強行寫入當前時間
         
       - name: Commit and Push changes
