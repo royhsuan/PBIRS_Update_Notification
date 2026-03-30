@@ -11,42 +11,48 @@ GITHUB_URL = "https://api.github.com/repos/MicrosoftDocs/powerbi-docs/contents/p
 STATE_FILE = "last_version.json"
 
 def run_monitor():
-    # 1. 抓取微軟原始文件
-    print("正在獲取最新 Changelog...")
+    print("正在獲取 GitHub 完整更新日誌內容...")
     resp = requests.get(GITHUB_URL)
     gh_data = resp.json()
     current_sha = gh_data['sha']
     
-    # 2. 讀取狀態檔案
-    state = {}
+    # 讀取現有狀態（如果存在）
+    history = []
+    last_sha = ""
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as f:
-            state = json.load(f)
+            data = json.load(f)
+            # 兼容舊格式：如果是列表就直接讀取，如果是字典就包成列表
+            history = data if isinstance(data, list) else [data]
+            # 嘗試從第一筆資料拿到上次紀錄的 SHA
+            if history: last_sha = history[0].get("sha", "")
 
-    # 3. 比對 SHA (節省 Quota)
-    if state.get("sha") == current_sha:
-        print("內容未變動，略過解析。")
+    # 比對 SHA（如果是第一次跑，或者是文件有變動才繼續）
+    if last_sha == current_sha:
+        print("內容未變動，且歷史紀錄已存在，結束執行。")
         return False
 
-    # 4. 內容有變，模擬官網格式解析
-    print("發現更新！正在依照官網風格生成摘要...")
+    print("偵測到文件變動或首次執行，開始完整解析歷史資訊...")
     md_text = base64.b64decode(gh_data['content']).decode('utf-8')
     
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # 指令優化：模仿 Microsoft Learn 的呈現方式
+    # 【關鍵：調整指令】要求 AI 擷取所有版本
     prompt = f"""
-    請閱讀以下 Power BI Report Server 更新日誌，並針對「最新的一個版本」擷取資訊。
-    輸出必須為 JSON 格式，包含以下精確欄位：
+    任務：將 Power BI Report Server 的更新日誌轉換為完整的 JSON 歷史紀錄。
     
-    1. version: 完整的版本與 Build 號。
-    2. release_date: 發布日期。
-    3. report_server_updates: 列出該版本中「Power BI Report Server」的所有更新要點 (繁中)。
-    4. desktop_updates: 列出該版本中「Power BI Desktop (RS 版)」的所有更新要點 (繁中)。
-    5. download_url: 官網下載網址 (通常在文末或標題旁)。
+    要求：
+    1. 掃描整份文件，提取「所有」列出的版本。
+    2. 輸出為 JSON 陣列 (Array)，每個物件包含：
+       - version: 版本號與 Build 號。
+       - release_date: 發布日期。
+       - report_server_updates: 伺服器更新要點 (繁中列表)。
+       - desktop_updates: Desktop RS 版更新要點 (繁中列表)。
+       - download_url: 下載連結。
+    3. 按照發布日期「由新到舊」排序。
 
-    內容如下：
-    {md_text[:6000]}
+    文件內容：
+    {md_text[:12000]} 
     """
     
     try:
@@ -55,21 +61,28 @@ def run_monitor():
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type='application/json',
-                temperature=0.0 # 確保技術文件的嚴確性
+                temperature=0.0
             ),
         )
-        new_data = json.loads(response.text)
+        new_history = json.loads(response.text)
+        
+        # 確保 new_history 是一個列表
+        if not isinstance(new_history, list):
+            new_history = [new_history]
+
+        # 在最新的一筆資料中存入當前的 SHA，方便下次比對
+        if new_history:
+            new_history[0]["sha"] = current_sha
         
     except Exception as e:
         print(f"解析失敗: {e}")
         raise 
-    
-    # 5. 更新狀態檔案
-    new_data["sha"] = current_sha
+
+    # 5. 儲存完整的歷史陣列
     with open(STATE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(new_data, f, indent=4, ensure_ascii=False)
+        json.dump(new_history, f, indent=4, ensure_ascii=False)
     
-    print(f"解析成功！當前版本: {new_data.get('version')}")
+    print(f"歷史資訊補完成功！共紀錄 {len(new_history)} 個版本。")
     return True
 
 if __name__ == "__main__":
