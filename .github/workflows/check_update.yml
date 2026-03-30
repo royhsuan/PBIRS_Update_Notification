@@ -1,13 +1,16 @@
 name: Power BI Report Server Monitor
 
+# 提前啟用 Node.js 24 環境
 env:
-  # 提前啟用 Node.js 24 環境，消除警告
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
   schedule:
-    - cron: '5 * * * *'  # 每 6 小時執行一次
-  workflow_dispatch:      # 允許手動點擊執行測試
+    - cron: '*/5 * * * *'  # 每 6 小時執行一次 (00, 06, 12, 18 UTC)
+  workflow_dispatch:      # 允許手動測試
+
+permissions:
+  contents: write         # 重要：允許 Action 寫入內容回 Repo
 
 jobs:
   build:
@@ -17,15 +20,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install google-genai requests  # 確保這裡有安裝 google-genai
+          pip install google-genai requests
 
       - name: Run Monitor Script
         env:
@@ -35,7 +38,12 @@ jobs:
       - name: Commit and Push changes
         run: |
           git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.name "github-actions[bot]"
           git add last_version.json
-          # 只有在檔案有變動時才 commit，避免報錯
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last_version.json [skip ci]" && git push)
+          # 檢查是否有變動，有的話才 commit/push
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Auto-update: PBIRS version info [skip ci]"
+            git push
+          else
+            echo "No changes in last_version.json, skipping push."
+          fi
