@@ -37,7 +37,7 @@ def run_monitor():
     client = genai.Client(api_key=GEMINI_KEY)
     
     # 【重點】如果你在 2.0 遇到 Limit 0，請先試著改用 'gemini-1.5-flash'
-    target_model = 'gemini-2.0-flash' 
+    target_model = 'gemini-2.5-flash' 
     
     prompt = f"請解析此 Power BI 更新日誌並以 JSON 格式回傳最新版本資訊(version, release_date, description): {md_text[:5000]}"
     
