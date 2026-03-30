@@ -31,3 +31,11 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python monitor.py
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add last_version.json
+          # 只有在檔案有變動時才 commit，避免報錯
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last_version.json [skip ci]" && git push)
