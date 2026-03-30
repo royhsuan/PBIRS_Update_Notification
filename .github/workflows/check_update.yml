@@ -1,5 +1,9 @@
 name: Power BI Report Server Monitor
 
+env:
+  # 提前啟用 Node.js 24 環境，消除警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     - cron: '5 * * * *'  # 每 6 小時執行一次
