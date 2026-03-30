@@ -41,7 +41,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "github-actions[bot]"
-          git add pbirs_last_version.json pbirs_heartbeat.txt
+          git add pbirs_version.json pbirs_heartbeat.txt
           # 檢查是否有變動，有的話才 commit/push
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Auto-update: PBIRS version info [skip ci]"
