@@ -1,0 +1,52 @@
+name: MSSQL Version Monitor
+
+# 提前啟用 Node.js 24 環境
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'  # 每 6 小時執行一次 (與 PBIRS 錯開 30 分鐘)
+  workflow_dispatch:        # 允許手動測試
+
+permissions:
+  contents: write           # 允許 Action 寫入內容回 Repo
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-genai requests
+
+      - name: Run MSSQL Monitor Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python mssql_monitor.py
+          date > mssql_heartbeat.txt  # 獨立的 MSSQL 心跳檔
+        
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "github-actions[bot]"
+          git add mssql_versions.json mssql_heartbeat.txt
+          
+          # 檢查是否有變動
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Auto-update: MSSQL version info [skip ci]"
+            git push
+          else
+            echo "No changes in mssql_versions.json, skipping push."
+          fi
