@@ -48,5 +48,5 @@ jobs:
             git commit -m "Heartbeat: $(date) [skip ci]" || echo "No changes to commit"
             git push
           else
-            echo "No changes in pbirs_last_version.json, skipping push."
+            echo "No changes in pbirs_version.json, skipping push."
           fi
